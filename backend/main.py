@@ -6,7 +6,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from pptx import Presentation
 from sqlalchemy.orm import Session
 
-from database import SessionLocal, PresentationRecord
+from database import SessionLocal, PresentationRecord, EvaluationRecord
 
 app = FastAPI(
     title="AI PPT Validator",
@@ -153,4 +153,99 @@ def get_presentation(
         "total_slides": record.total_slides,
         "uploaded_at": record.uploaded_at.isoformat(),
         "slides": json.loads(record.slides_json)
+    }
+
+
+# Evaluate a presentation (temporary mock evaluator)
+@app.post("/api/ppt/evaluate/{presentation_id}")
+def evaluate_presentation(
+    presentation_id: int,
+    db: Session = Depends(get_db)
+):
+    # Find the uploaded presentation
+    record = db.query(PresentationRecord).filter(
+        PresentationRecord.id == presentation_id
+    ).first()
+
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Presentation not found"
+        )
+
+    # Retrieve extracted slide content
+    slides = json.loads(record.slides_json)
+
+    # TEMPORARY TEST DATA - NOT REAL AI EVALUATION
+    evaluation_result = {
+        "evaluation_mode": "mock",
+        "overall_score": 75,
+        "summary": "This is temporary test feedback, not an actual AI evaluation.",
+        "slide_feedback": [
+            {
+                "slide_number": slide["slide_number"],
+                "score": 75,
+                "issues": ["Mock issue for testing"],
+                "suggestions": ["Mock suggestion for testing"]
+            }
+            for slide in slides
+        ],
+        "improvements": [
+            "Temporary improvement suggestion for testing"
+        ]
+    }
+
+    # Save evaluation in SQLite
+    evaluation_record = EvaluationRecord(
+        presentation_id=record.id,
+        overall_score=evaluation_result["overall_score"],
+        results_json=json.dumps(
+            evaluation_result,
+            ensure_ascii=False
+        )
+    )
+
+    try:
+        db.add(evaluation_record)
+        db.commit()
+        db.refresh(evaluation_record)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to save evaluation"
+        )
+
+    return {
+        "evaluation_id": evaluation_record.id,
+        "presentation_id": record.id,
+        "filename": record.filename,
+        "overall_score": evaluation_record.overall_score,
+        "results": evaluation_result,
+        "message": "Mock evaluation saved successfully"
+    }
+
+# Get a saved evaluation report
+@app.get("/api/evaluations/{evaluation_id}")
+def get_evaluation(
+    evaluation_id: int,
+    db: Session = Depends(get_db)
+):
+    evaluation = db.query(EvaluationRecord).filter(
+        EvaluationRecord.id == evaluation_id
+    ).first()
+
+    if evaluation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Evaluation not found"
+        )
+
+    return {
+        "evaluation_id": evaluation.id,
+        "presentation_id": evaluation.presentation_id,
+        "overall_score": evaluation.overall_score,
+        "results": json.loads(evaluation.results_json),
+        "created_at": evaluation.created_at.isoformat()
     }

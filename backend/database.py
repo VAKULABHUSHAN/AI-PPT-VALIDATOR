@@ -32,6 +32,25 @@ class PresentationRecord(Base):
     slides_json = Column(Text, nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
 
+# Evaluation report table
+class EvaluationRecord(Base):
+    __tablename__ = "evaluations"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    presentation_id = Column(
+        Integer,
+        nullable=False
+    )
+
+    overall_score = Column(Integer, nullable=False)
+
+    results_json = Column(Text, nullable=False)
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
 
 # Create tables
 Base.metadata.create_all(bind=engine)
